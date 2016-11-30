@@ -6,16 +6,16 @@ dotnet hook in mono
 ![image](https://github.com/evilzhou/mono_dotnet_hook/blob/master/docs/1.png)
 
 
-DLL实现：
+DLL实现示例：
 
-https://github.com/evilzhou/mono_dotnet_hook/blob/master/docs/2.png
+![image](https://github.com/evilzhou/mono_dotnet_hook/blob/master/docs/2.png)
 
-https://github.com/evilzhou/mono_dotnet_hook/blob/master/docs/3.png
+![image](https://github.com/evilzhou/mono_dotnet_hook/blob/master/docs/3.png)
 
 
 执行日志：
 
-https://github.com/evilzhou/mono_dotnet_hook/blob/master/docs/4.png
+![image](https://github.com/evilzhou/mono_dotnet_hook/blob/master/docs/4.png)
 
 
 注意：
