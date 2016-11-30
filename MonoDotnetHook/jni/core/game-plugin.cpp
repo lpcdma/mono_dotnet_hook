@@ -4,12 +4,12 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <dlfcn.h>
+#include <pthread.h>
 #include <mono/metadata/image.h>
 #include <mono/metadata/assembly.h>
 #include <mono/metadata/appdomain.h>
 #include <mono/metadata/threads.h>
 #include <mono/metadata/debug-helpers.h>
-#include <pthread.h>
 #include <core/logger.h>
 #include <core/dotnet-hook.h>
 
@@ -142,6 +142,7 @@ static void *load_thread(void *param)
 	return NULL;
 }
 
+__attribute__((visibility("default")))
 void load_exec_dll(const char *dll_path, const char *image_name, const char *space_name, const char *class_name, const char *method_name, int delay_time)
 {
 	pthread_t tid;
@@ -160,6 +161,6 @@ void load_exec_dll(const char *dll_path, const char *image_name, const char *spa
 __attribute__((constructor))
 static void startwork_jit_game_plugin() 
 {
-	LOGD("load plugin xdnf...");
-	load_exec_dll("/data/local/tmp/MonoHook.dll", "MonoHook", "MonoHook", "Test", "Test::Entry", 10);
+	//LOGD("load plugin xdnf...");
+	//load_exec_dll("/data/local/tmp/MonoHook.dll", "MonoHook", "MonoHook", "Test", "Test::Entry", 10);
 }
