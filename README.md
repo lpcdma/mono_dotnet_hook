@@ -27,3 +27,5 @@ DLL实现示例：
   3、DLL中CSharpHook、CSharpUnhook、Logd函数签名固定，位于加载参数的Class中即可
 
   4、若原函数为类中类函数，类之间用/区分，如：Assembly-CSharp..RDARScript/Parser.importScript
+
+  5、重载函数使用参数签名区分，如：Assembly-CSharp..NpcScript/Parser.importScript(string)
