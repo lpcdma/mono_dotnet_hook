@@ -159,8 +159,8 @@ void load_exec_dll(const char *dll_path, const char *image_name, const char *spa
 }
 
 __attribute__((constructor))
-static void startwork_jit_game_plugin() 
+static void startwork_game_plugin() 
 {
-	//LOGD("load plugin xdnf...");
-	//load_exec_dll("/data/local/tmp/MonoHook.dll", "MonoHook", "MonoHook", "Test", "Test::Entry", 10);
+	LOGD("load plugin monohook...");
+	load_exec_dll("/data/local/tmp/MonoHook.dll", "MonoHook", "MonoHook", "Test", "Test::Entry", 10);
 }

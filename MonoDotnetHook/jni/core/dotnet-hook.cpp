@@ -88,7 +88,7 @@ void hook_dotnet(MonoString *str_target, MonoString *str_replace, MonoString *st
 	void *origin_code_start_addr = mono_compile_method(target_method);
 	void *replace_code_start_addr = mono_compile_method(replace_method);
 	void *old_code_start_addr = mono_compile_method(old_method);
-	if (!origin_code_start_addr || !replace_code_start_addr || !old_method)
+	if (!origin_code_start_addr || !replace_code_start_addr || !old_code_start_addr)
 	{
 		LOGD("dotnet-hook failed compile method %x %x %x", (int)origin_code_start_addr, (int)replace_code_start_addr, (int)old_code_start_addr);
 		return;
