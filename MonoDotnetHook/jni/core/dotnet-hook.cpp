@@ -1,9 +1,7 @@
 #include <mono/metadata/assembly.h>
 #include <mono/metadata/metadata.h>
 #include <mono/metadata/object.h>
-#include <cstring>
 #include <map>
-#include <string>
 #include <core/logger.h>
 #include <core/mono-help.h>
 #include <core/common-help.h>
@@ -11,51 +9,7 @@
 
 static char split_str = '.';
 static char expire_param_count = 4;
-static MonoImage *found_image = NULL;
 static std::map<MonoMethod *, void *> hook_dict;
-
-static void foreach_assembly(MonoAssembly *ass, void *user_data)
-{
-	if (!found_image)
-	{
-		MonoImage *cur_image = mono_assembly_get_image(ass);
-		const char *cur_image_name = mono_image_get_name(cur_image);
-		if (strcmp(cur_image_name, (const char *)user_data) == 0)
-		{
-			found_image = cur_image;
-		}
-	}
-}
-
-static void find_image_by_name(const char *image_name)
-{
-	found_image = NULL;
-	mono_assembly_foreach((MonoFunc)foreach_assembly, (void *)image_name);
-}
-
-
-static MonoMethod *find_method(char *image_name, char *space_name, char *class_name, char *method_name)
-{
-	MonoMethod *target_method = NULL;
-	find_image_by_name(image_name);
-	if (found_image)
-	{
-		MonoClass *klass = mono_class_from_name(found_image, space_name, class_name);
-		if (klass)
-		{
-			std::string str_fullname;
-			str_fullname.append(class_name);
-			str_fullname.append("::");
-			str_fullname.append(method_name);
-			MonoMethodDesc *method_desc = mono_method_desc_new(str_fullname.data(), false);
-			target_method = mono_method_desc_search_in_class(method_desc, klass);
-			mono_method_desc_free(method_desc);
-		}
-	}
-
-	return target_method;
-}
-
 
 void hook_dotnet(MonoString *str_target, MonoString *str_replace, MonoString *str_old)
 {

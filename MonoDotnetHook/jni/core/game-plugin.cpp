@@ -12,6 +12,7 @@
 #include <mono/metadata/debug-helpers.h>
 #include <core/logger.h>
 #include <core/dotnet-hook.h>
+#include <core/mono-help.h>
 
 
 struct LoadParam
@@ -87,40 +88,15 @@ static void *load_thread(void *param)
 			MonoAssembly *assembly = mono_assembly_load_from(image, load_param->dll_path, NULL);
 			if (assembly)
 			{
-				MonoClass *kclass = mono_class_from_name(image, load_param->space_name, load_param->class_name);
-				if (kclass)
+				MonoMethod *method = find_method((char *)load_param->image_name, (char *)load_param->space_name, (char *)load_param->class_name, (char *)load_param->method_name);
+				if (method)
 				{
-					char szTmp[512] = { 0x00 };
-					sprintf(szTmp, "%s.%s::Logd", load_param->space_name, load_param->class_name);
-					mono_add_internal_call((const char *)szTmp, (void *)logd);
-					sprintf(szTmp, "%s.%s::CSharpHook", load_param->space_name, load_param->class_name);
-					mono_add_internal_call((const char *)szTmp, (void *)hook_dotnet);
-					sprintf(szTmp, "%s.%s::CSharpUnhook", load_param->space_name, load_param->class_name);
-					mono_add_internal_call((const char *)szTmp, (void *)unhook_dotnet);
-
-					MonoMethodDesc *method_desc = mono_method_desc_new(load_param->method_name, false);
-					if (method_desc)
-					{
-						MonoMethod *method = mono_method_desc_search_in_class(method_desc, kclass);
-						mono_method_desc_free(method_desc);
-						if (method)
-						{
-							mono_runtime_invoke(method, NULL, NULL, NULL);
-							LOGD("game-plugin load ok...");
-						}
-						else
-						{
-							LOGD("failed invoke method");
-						}
-					}
-					else
-					{
-						LOGD("failed create method desc");
-					}
+					mono_runtime_invoke(method, NULL, NULL, NULL);
+					LOGD("load game-plugin ok...");
 				}
 				else
 				{
-					LOGD("failed find class");
+					LOGD("failed find method");
 				}
 			}
 			else

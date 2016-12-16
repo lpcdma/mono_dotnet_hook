@@ -46,4 +46,6 @@ char const *get_method_namespace_name (MonoMethod *method);
 
 MonoMethod *get_method_with_token (char const *image_name, uint32_t token);
 
-char const *helper_last_err ();
+MonoMethod *find_method(char *image_name, char *space_name, char *class_name, char *method_name);
+
+void find_image_by_name(const char *image_name);
