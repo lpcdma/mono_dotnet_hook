@@ -88,6 +88,14 @@ static void *load_thread(void *param)
 			MonoAssembly *assembly = mono_assembly_load_from(image, load_param->dll_path, NULL);
 			if (assembly)
 			{
+				char szTmp[512] = { 0x00 };
+				sprintf(szTmp, "%s.%s::Logd", load_param->space_name, load_param->class_name);
+				mono_add_internal_call((const char *)szTmp, (void *)logd);
+				sprintf(szTmp, "%s.%s::CSharpHook", load_param->space_name, load_param->class_name);
+				mono_add_internal_call((const char *)szTmp, (void *)hook_dotnet);
+				sprintf(szTmp, "%s.%s::CSharpUnhook", load_param->space_name, load_param->class_name);
+				mono_add_internal_call((const char *)szTmp, (void *)unhook_dotnet);
+
 				MonoMethod *method = find_method((char *)load_param->image_name, (char *)load_param->space_name, (char *)load_param->class_name, (char *)load_param->method_name);
 				if (method)
 				{
