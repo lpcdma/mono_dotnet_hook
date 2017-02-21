@@ -29,5 +29,3 @@ DLL实现示例：
   4、若原函数为类中类函数，类之间用/区分，如：Assembly-CSharp..RDARScript/Parser.importScript
 
   5、重载函数使用参数签名区分，如：Assembly-CSharp..NpcScript/Parser.importScript(string)
-
-  6、模版类，如class FixQueue<T>，使用：FixQueue`1
