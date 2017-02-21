@@ -35,6 +35,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="jni\core\JsonSerialize.cpp" />
     <ClCompile Include="jni\injector\android-injector.cpp" />
     <ClCompile Include="jni\core\armhook.cpp" />
     <ClCompile Include="jni\core\common-help.cpp" />
@@ -42,8 +43,23 @@
     <ClCompile Include="jni\core\game-plugin.cpp" />
     <ClCompile Include="jni\core\mono-help.cpp" />
     <ClCompile Include="jni\injector\injector.cpp" />
+    <ClCompile Include="jni\json\json_reader.cpp" />
+    <ClCompile Include="jni\json\json_value.cpp" />
+    <ClCompile Include="jni\json\json_writer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="jni\include\core\JsonSerialize.h" />
+    <ClInclude Include="jni\include\json\allocator.h" />
+    <ClInclude Include="jni\include\json\assertions.h" />
+    <ClInclude Include="jni\include\json\autolink.h" />
+    <ClInclude Include="jni\include\json\config.h" />
+    <ClInclude Include="jni\include\json\features.h" />
+    <ClInclude Include="jni\include\json\forwards.h" />
+    <ClInclude Include="jni\include\json\json.h" />
+    <ClInclude Include="jni\include\json\reader.h" />
+    <ClInclude Include="jni\include\json\value.h" />
+    <ClInclude Include="jni\include\json\version.h" />
+    <ClInclude Include="jni\include\json\writer.h" />
     <ClInclude Include="jni\injector\android-injector.h" />
     <ClInclude Include="jni\include\core\armhook.h" />
     <ClInclude Include="jni\include\core\common-help.h" />
@@ -80,9 +96,11 @@
     <ClInclude Include="jni\include\mono\utils\mono-error.h" />
     <ClInclude Include="jni\include\mono\utils\mono-logger.h" />
     <ClInclude Include="jni\include\mono\utils\mono-publib.h" />
+    <ClInclude Include="jni\json\json_tool.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="jni\include\mono\cil\opcode.def" />
+    <None Include="jni\json\json_valueiterator.inl" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{44d24f90-d069-422b-b495-ffd7bdf4ebee}</ProjectGuid>

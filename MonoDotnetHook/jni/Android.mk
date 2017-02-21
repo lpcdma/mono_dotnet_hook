@@ -37,11 +37,15 @@ LOCAL_CFLAGS	+= -fvisibility=hidden
 LOCAL_CPPFLAGS	+= -fexceptions
 
 LOCAL_SRC_FILES	:= \
+		json\json_value.cpp \
+		json\json_writer.cpp \
+		json\json_reader.cpp \
 		core\common-help.cpp \
 		core\mono-help.cpp \
 		core\armhook.cpp \
 		core\game-plugin.cpp \
-		core\dotnet-hook.cpp
+		core\dotnet-hook.cpp \
+		core\JsonSerialize.cpp
 
 include $(BUILD_SHARED_LIBRARY)
 
