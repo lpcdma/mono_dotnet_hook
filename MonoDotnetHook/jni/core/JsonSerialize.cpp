@@ -62,7 +62,8 @@ void JsonSerialize::SerializeProperty(MonoObject*obj, MonoProperty* prop, Json::
 		const char *prop_name = mono_property_get_name(prop);
 		MonoObject *ret = mono_runtime_invoke(getter, obj, NULL, NULL);
 		MonoMethodSignature *signature = mono_method_get_signature(getter, mono_class_get_image(mono_method_get_class(getter)), mono_method_get_token(getter));
-		SerializeMonoTypeWithAddr(signature->ret, mono_type_is_reference(signature->ret) ? &ret : mono_object_unbox(ret), container, Json::Value(prop_name));
+		MonoType *ret_type = mono_signature_get_return_type(signature);
+		SerializeMonoTypeWithAddr(ret_type, mono_type_is_reference(ret_type) ? &ret : mono_object_unbox(ret), container, Json::Value(prop_name));
 	}
 }
 
@@ -405,9 +406,28 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 	}
 }
 
-void JsonSerialize::DeserializeProperty(MonoObject* obj, MonoProperty* property, Json::Value container)
+void JsonSerialize::DeserializeProperty(MonoObject* obj, MonoProperty* prop, Json::Value container)
 {
-	
+	MonoMethod *setter = mono_property_get_set_method(prop);
+	if (setter)
+	{
+		MonoMethodSignature *signature = mono_method_get_signature(setter, mono_class_get_image(mono_method_get_class(setter)), mono_method_get_token(setter));
+		uint32_t param_count = mono_signature_get_param_count(signature);
+		if (param_count == 1)
+		{
+			int32_t align = 0;
+			void *iter = NULL;
+			const char *prop_name = mono_property_get_name(prop);
+			MonoType *param_type = mono_signature_get_params(signature, &iter);
+			int32_t param_size = mono_type_size(param_type, &align);
+			void *value_addr = malloc(param_size);
+			void *args[1] = { value_addr };
+			DeserializeMonoTypeWithAddr(param_type, value_addr, container[prop_name]);
+			args[0] = mono_type_is_reference(param_type) ? *(void **)value_addr : value_addr;
+			mono_runtime_invoke(setter, obj, args, NULL);
+			free(value_addr);
+		}
+	}
 }
 
 void JsonSerialize::get_enum_desc_by_value(MonoType* mono_type, uint32_t enum_value, char* result, uint32_t size)

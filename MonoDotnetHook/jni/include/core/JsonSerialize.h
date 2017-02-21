@@ -127,7 +127,7 @@ protected:
 	virtual void SerializeProperty(MonoObject*obj, MonoProperty *prop, Json::Value &container);
 	virtual void SerializeField(MonoObject*obj, MonoClassField *field, Json::Value &container);
 	virtual void SerializeMonoTypeWithAddr(MonoType *mono_type, void *addr, Json::Value &container, Json::Value key);
-	virtual void DeserializeProperty(MonoObject *obj, MonoProperty* property, Json::Value container);
+	virtual void DeserializeProperty(MonoObject *obj, MonoProperty* prop, Json::Value container);
 	virtual void DeserializeField(MonoObject *obj, MonoClassField* field, Json::Value container);
 	virtual void DeserializeMonoTypeWithAddr(MonoType *mono_type, void *addr, Json::Value container);
 	
