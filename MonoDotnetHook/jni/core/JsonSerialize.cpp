@@ -311,7 +311,7 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 	}
 	else if (type == MONO_TYPE_OBJECT)
 	{
-		*(MonoObject **)addr = (MonoObject *)container.asUInt64();
+		*(MonoObject **)addr = (MonoObject *)container.asUInt();
 	}
 	else if (type == MONO_TYPE_VALUETYPE)
 	{
