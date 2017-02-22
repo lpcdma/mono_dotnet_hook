@@ -15,30 +15,29 @@ void JsonSerialize::Serialize(MonoObject* obj, Json::Value &container)
 	}
 
 	MonoClass *klass = mono_object_get_class(obj);
-	if (!klass)
+	do
 	{
-		return;
-	}
-
-	void *iter = NULL;
-	MonoProperty* prop;
-	while ((prop = mono_class_get_properties(klass, &iter)))
-	{
-		if (CanSerializeProperty(prop))
+		void *iter = NULL;
+		MonoProperty* prop;
+		while ((prop = mono_class_get_properties(klass, &iter)))
 		{
-			SerializeProperty(obj, prop, container);
+			if (CanSerializeProperty(prop))
+			{
+				SerializeProperty(obj, prop, container);
+			}
 		}
-	}
 
-	iter = NULL;
-	MonoClassField *field;
-	while ((field = mono_class_get_fields(klass, &iter)))
-	{
-		if (CanSerializeField(field))
+		iter = NULL;
+		MonoClassField *field;
+		while ((field = mono_class_get_fields(klass, &iter)))
 		{
-			SerializeField(obj, field, container);
+			if (CanSerializeField(field))
+			{
+				SerializeField(obj, field, container);
+			}
 		}
-	}
+		klass = mono_class_get_parent(klass);
+	} while (klass);
 }
 
 void JsonSerialize::SerializeField(MonoObject*obj, MonoClassField* field, Json::Value& container)
@@ -51,6 +50,7 @@ void JsonSerialize::SerializeField(MonoObject*obj, MonoClassField* field, Json::
 	{
 		start_addr = mono_vtable_get_static_field_data(mono_class_vtable(domain, mono_object_get_class(obj)));
 	}
+	printf("serialize field %s\n", field_name);
 	SerializeMonoTypeWithAddr(mono_type, (void *)((uint64_t)start_addr + offset), container, field_name);
 }
 
@@ -63,6 +63,7 @@ void JsonSerialize::SerializeProperty(MonoObject*obj, MonoProperty* prop, Json::
 		MonoObject *ret = mono_runtime_invoke(getter, obj, NULL, NULL);
 		MonoMethodSignature *signature = mono_method_get_signature(getter, mono_class_get_image(mono_method_get_class(getter)), mono_method_get_token(getter));
 		MonoType *ret_type = mono_signature_get_return_type(signature);
+		printf("serialize prop %s\n", prop_name);
 		SerializeMonoTypeWithAddr(ret_type, mono_type_is_reference(ret_type) ? &ret : mono_object_unbox(ret), container, Json::Value(prop_name));
 	}
 }
@@ -237,25 +238,29 @@ MonoObject* JsonSerialize::Deserialize(Json::Value container, MonoClass* type)
 {
 	MonoObject *obj = mono_object_new(domain, type);
 
-	void *iter = NULL;
-	MonoProperty* prop;
-	while ((prop = mono_class_get_properties(type, &iter)))
+	do
 	{
-		if (CanSerializeProperty(prop) && container[mono_property_get_name(prop)] != Json::nullValue)
+		void *iter = NULL;
+		MonoProperty* prop;
+		while ((prop = mono_class_get_properties(type, &iter)))
 		{
-			DeserializeProperty(obj, prop, container);
+			if (CanSerializeProperty(prop) && container[mono_property_get_name(prop)] != Json::nullValue)
+			{
+				DeserializeProperty(obj, prop, container);
+			}
 		}
-	}
 
-	iter = NULL;
-	MonoClassField *field;
-	while ((field = mono_class_get_fields(type, &iter)))
-	{
-		if (CanSerializeField(field) && container[mono_field_get_name(field)] != Json::nullValue)
+		iter = NULL;
+		MonoClassField *field;
+		while ((field = mono_class_get_fields(type, &iter)))
 		{
-			DeserializeField(obj, field, container);
+			if (CanSerializeField(field) && container[mono_field_get_name(field)] != Json::nullValue)
+			{
+				DeserializeField(obj, field, container);
+			}
 		}
-	}
+		type = mono_class_get_parent(type);
+	} while (type);
 
 	return obj;
 }
@@ -311,7 +316,7 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 	}
 	else if (type == MONO_TYPE_OBJECT)
 	{
-		*(MonoObject **)addr = (MonoObject *)container.asUInt();
+		*(MonoObject **)addr = (MonoObject *)container.asUInt64();
 	}
 	else if (type == MONO_TYPE_VALUETYPE)
 	{
@@ -330,7 +335,7 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 	else if (type == MONO_TYPE_SZARRAY)
 	{
 		uint32_t count = container.size();
-		if (count>0)
+		if (count > 0)
 		{
 			MonoClass *elem_class = mono_class_get_element_class(mono_class_from_mono_type(mono_type));
 			MonoArray *array = mono_array_new(domain, elem_class, count);
@@ -354,7 +359,7 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 		if (strcmp(container_class_name, "List`1") == 0 && mono_type_argc == 1)
 		{
 			uint32_t count = container.size();
-			if (count>0)
+			if (count > 0)
 			{
 				MonoClass *list_generic_class = mono_class_from_mono_type(mono_type);
 				MonoObject *list_obj = mono_object_new(domain, list_generic_class);
@@ -376,7 +381,7 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 		else if (strcmp(container_class_name, "Dictionary`2") == 0 && mono_type_argc == 2)
 		{
 			uint32_t count = container.size();
-			if (count>0)
+			if (count > 0)
 			{
 				int32_t align = 0;
 				MonoClass *dict_generic_class = mono_class_from_mono_type(mono_type);
@@ -474,7 +479,7 @@ uint32_t JsonSerialize::get_enum_value_by_desc(MonoType* mono_type, const char* 
 			MonoVTable *vtable = mono_class_vtable(mono_domain_get(), type_class);
 			mono_field_static_get_value(vtable, field, &field_value);
 			snprintf(sztmp, 256, "%s.%s", mono_class_get_name(type_class), mono_field_get_name(field));
-			if (strcmp(desc, sztmp)==0)
+			if (strcmp(desc, sztmp) == 0)
 			{
 				ret = field_value;
 				break;
