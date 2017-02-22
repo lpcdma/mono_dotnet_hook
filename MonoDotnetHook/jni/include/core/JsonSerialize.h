@@ -7,6 +7,8 @@
 #define FIELD_ATTRIBUTE_STATIC                0x0010
 #define FIELD_ATTRIBUTE_SPECIAL_NAME          0x0200
 #define FIELD_ATTRIBUTE_RT_SPECIAL_NAME       0x0400
+#define TYPE_ATTRIBUTE_ABSTRACT              0x00000080
+#define METHOD_ATTRIBUTE_ABSTRACT                  0x0400
 /* a field is ignored if it's named "_Deleted" and it has the specialname and rtspecialname flags set */
 #define mono_field_is_deleted(field) ((mono_field_get_flags(field) & (FIELD_ATTRIBUTE_SPECIAL_NAME | FIELD_ATTRIBUTE_RT_SPECIAL_NAME)) \
 				      && (strcmp (mono_field_get_name (field), "_Deleted") == 0))
@@ -119,9 +121,10 @@ class JsonSerialize
 public:
 	JsonSerialize();
 	void Serialize(MonoObject* obj, Json::Value &container);
-	MonoObject *Deserialize(Json::Value container, MonoClass *type);
+	MonoObject *Deserialize(Json::Value container, MonoClass *klass);
 
 protected:
+	virtual bool CanSerializeClass(MonoClass *klass);
 	virtual bool CanSerializeProperty(MonoProperty *prop);
 	virtual bool CanSerializeField(_MonoClassField *field);
 	virtual void SerializeProperty(MonoObject*obj, MonoProperty *prop, Json::Value &container);
@@ -130,7 +133,7 @@ protected:
 	virtual void DeserializeProperty(MonoObject *obj, MonoProperty* prop, Json::Value container);
 	virtual void DeserializeField(MonoObject *obj, MonoClassField* field, Json::Value container);
 	virtual void DeserializeMonoTypeWithAddr(MonoType *mono_type, void *addr, Json::Value container);
-	
+
 private:
 	MonoDomain	*domain;
 	static void get_enum_desc_by_value(MonoType* mono_type, uint32_t enum_value, char* result, uint32_t size);

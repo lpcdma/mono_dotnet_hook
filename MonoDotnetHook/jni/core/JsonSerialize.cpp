@@ -1,6 +1,6 @@
 #include <core/JsonSerialize.h>
 #include <mono/metadata/appdomain.h>
-
+#include <core/logger.h>
 
 JsonSerialize::JsonSerialize()
 {
@@ -9,34 +9,38 @@ JsonSerialize::JsonSerialize()
 
 void JsonSerialize::Serialize(MonoObject* obj, Json::Value &container)
 {
-	if (!obj)
-	{
-		return;
-	}
-
 	MonoClass *klass = mono_object_get_class(obj);
 	do
 	{
-		void *iter = NULL;
-		MonoProperty* prop;
-		while ((prop = mono_class_get_properties(klass, &iter)))
+		if (CanSerializeClass(klass))
 		{
-			if (CanSerializeProperty(prop))
+			LOGD("class begin: %s", mono_class_get_name(klass));
+			void *iter = NULL;
+			MonoProperty* prop;
+			while ((prop = mono_class_get_properties(klass, &iter)))
 			{
-				SerializeProperty(obj, prop, container);
+				if (CanSerializeProperty(prop))
+				{
+					LOGD("prop start: %s", mono_property_get_name(prop));
+					SerializeProperty(obj, prop, container);
+					LOGD("prop end: %s", mono_property_get_name(prop));
+				}
 			}
-		}
 
-		iter = NULL;
-		MonoClassField *field;
-		while ((field = mono_class_get_fields(klass, &iter)))
-		{
-			if (CanSerializeField(field))
+			iter = NULL;
+			MonoClassField *field;
+			while ((field = mono_class_get_fields(klass, &iter)))
 			{
-				SerializeField(obj, field, container);
+				if (CanSerializeField(field))
+				{
+					LOGD("field start: %s", mono_field_get_name(field));
+					SerializeField(obj, field, container);
+					LOGD("field end: %s", mono_field_get_name(field));
+				}
 			}
+			LOGD("class end: %s", mono_class_get_name(klass));
+			klass = mono_class_get_parent(klass);
 		}
-		klass = mono_class_get_parent(klass);
 	} while (klass);
 }
 
@@ -50,7 +54,6 @@ void JsonSerialize::SerializeField(MonoObject*obj, MonoClassField* field, Json::
 	{
 		start_addr = mono_vtable_get_static_field_data(mono_class_vtable(domain, mono_object_get_class(obj)));
 	}
-	printf("serialize field %s\n", field_name);
 	SerializeMonoTypeWithAddr(mono_type, (void *)((uint64_t)start_addr + offset), container, field_name);
 }
 
@@ -59,14 +62,23 @@ void JsonSerialize::SerializeProperty(MonoObject*obj, MonoProperty* prop, Json::
 	MonoMethod *getter = mono_property_get_get_method(prop);
 	if (getter)
 	{
-		const char *prop_name = mono_property_get_name(prop);
-		MonoObject *ret = mono_runtime_invoke(getter, obj, NULL, NULL);
-		MonoMethodSignature *signature = mono_method_get_signature(getter, mono_class_get_image(mono_method_get_class(getter)), mono_method_get_token(getter));
-		MonoType *ret_type = mono_signature_get_return_type(signature);
-		printf("serialize prop %s\n", prop_name);
-		SerializeMonoTypeWithAddr(ret_type, mono_type_is_reference(ret_type) ? &ret : mono_object_unbox(ret), container, Json::Value(prop_name));
+		uint32_t flags = mono_method_get_flags(getter, NULL);
+		if (!(flags & METHOD_ATTRIBUTE_ABSTRACT))
+		{
+			const char *prop_name = mono_property_get_name(prop);
+			MonoObject *ret = mono_runtime_invoke(getter, obj, NULL, NULL);
+			MonoMethodSignature *signature = mono_method_get_signature(getter, mono_class_get_image(mono_method_get_class(getter)), mono_method_get_token(getter));
+			MonoType *ret_type = mono_signature_get_return_type(signature);
+			SerializeMonoTypeWithAddr(ret_type, mono_type_is_reference(ret_type) ? &ret : mono_object_unbox(ret), container, Json::Value(prop_name));
+		}
 	}
 }
+
+bool JsonSerialize::CanSerializeClass(MonoClass* klass)
+{
+	return true;
+}
+
 
 bool JsonSerialize::CanSerializeField(_MonoClassField* field)
 {
@@ -232,35 +244,41 @@ void JsonSerialize::SerializeMonoTypeWithAddr(MonoType* mono_type, void* addr, J
 			}
 		}
 	}
+	else
+	{
+		LOGD("unserialize type %s %x", mono_type_get_name(mono_type), type);
+	}
 }
 
-MonoObject* JsonSerialize::Deserialize(Json::Value container, MonoClass* type)
+MonoObject* JsonSerialize::Deserialize(Json::Value container, MonoClass* klass)
 {
-	MonoObject *obj = mono_object_new(domain, type);
-
+	MonoObject *obj = mono_object_new(domain, klass);
 	do
 	{
-		void *iter = NULL;
-		MonoProperty* prop;
-		while ((prop = mono_class_get_properties(type, &iter)))
+		if (CanSerializeClass(klass))
 		{
-			if (CanSerializeProperty(prop) && container[mono_property_get_name(prop)] != Json::nullValue)
+			void *iter = NULL;
+			MonoProperty* prop;
+			while ((prop = mono_class_get_properties(klass, &iter)))
 			{
-				DeserializeProperty(obj, prop, container);
+				if (CanSerializeProperty(prop) && container[mono_property_get_name(prop)] != Json::nullValue)
+				{
+					DeserializeProperty(obj, prop, container);
+				}
 			}
-		}
 
-		iter = NULL;
-		MonoClassField *field;
-		while ((field = mono_class_get_fields(type, &iter)))
-		{
-			if (CanSerializeField(field) && container[mono_field_get_name(field)] != Json::nullValue)
+			iter = NULL;
+			MonoClassField *field;
+			while ((field = mono_class_get_fields(klass, &iter)))
 			{
-				DeserializeField(obj, field, container);
+				if (CanSerializeField(field) && container[mono_field_get_name(field)] != Json::nullValue)
+				{
+					DeserializeField(obj, field, container);
+				}
 			}
+			klass = mono_class_get_parent(klass);
 		}
-		type = mono_class_get_parent(type);
-	} while (type);
+	} while (klass);
 
 	return obj;
 }
@@ -316,7 +334,7 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 	}
 	else if (type == MONO_TYPE_OBJECT)
 	{
-		*(MonoObject **)addr = (MonoObject *)container.asUInt64();
+		*(MonoObject **)addr = (MonoObject *)container.asUInt();
 	}
 	else if (type == MONO_TYPE_VALUETYPE)
 	{
@@ -422,21 +440,25 @@ void JsonSerialize::DeserializeProperty(MonoObject* obj, MonoProperty* prop, Jso
 	MonoMethod *setter = mono_property_get_set_method(prop);
 	if (setter)
 	{
-		MonoMethodSignature *signature = mono_method_get_signature(setter, mono_class_get_image(mono_method_get_class(setter)), mono_method_get_token(setter));
-		uint32_t param_count = mono_signature_get_param_count(signature);
-		if (param_count == 1)
+		uint32_t flags = mono_method_get_flags(setter, NULL);
+		if (!(flags & METHOD_ATTRIBUTE_ABSTRACT))
 		{
-			int32_t align = 0;
-			void *iter = NULL;
-			const char *prop_name = mono_property_get_name(prop);
-			MonoType *param_type = mono_signature_get_params(signature, &iter);
-			int32_t param_size = mono_type_size(param_type, &align);
-			void *value_addr = malloc(param_size);
-			void *args[1] = { value_addr };
-			DeserializeMonoTypeWithAddr(param_type, value_addr, container[prop_name]);
-			args[0] = mono_type_is_reference(param_type) ? *(void **)value_addr : value_addr;
-			mono_runtime_invoke(setter, obj, args, NULL);
-			free(value_addr);
+			MonoMethodSignature *signature = mono_method_get_signature(setter, mono_class_get_image(mono_method_get_class(setter)), mono_method_get_token(setter));
+			uint32_t param_count = mono_signature_get_param_count(signature);
+			if (param_count == 1)
+			{
+				int32_t align = 0;
+				void *iter = NULL;
+				const char *prop_name = mono_property_get_name(prop);
+				MonoType *param_type = mono_signature_get_params(signature, &iter);
+				int32_t param_size = mono_type_size(param_type, &align);
+				void *value_addr = malloc(param_size);
+				void *args[1] = { value_addr };
+				DeserializeMonoTypeWithAddr(param_type, value_addr, container[prop_name]);
+				args[0] = mono_type_is_reference(param_type) ? *(void **)value_addr : value_addr;
+				mono_runtime_invoke(setter, obj, args, NULL);
+				free(value_addr);
+			}
 		}
 	}
 }
