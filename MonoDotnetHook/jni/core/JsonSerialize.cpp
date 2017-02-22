@@ -241,14 +241,20 @@ MonoObject* JsonSerialize::Deserialize(Json::Value container, MonoClass* type)
 	MonoProperty* prop;
 	while ((prop = mono_class_get_properties(type, &iter)))
 	{
-		DeserializeProperty(obj, prop, container);
+		if (CanSerializeProperty(prop) && container[mono_property_get_name(prop)] != Json::nullValue)
+		{
+			DeserializeProperty(obj, prop, container);
+		}
 	}
 
 	iter = NULL;
 	MonoClassField *field;
 	while ((field = mono_class_get_fields(type, &iter)))
 	{
-		DeserializeField(obj, field, container);
+		if (CanSerializeField(field) && container[mono_field_get_name(field)] != Json::nullValue)
+		{
+			DeserializeField(obj, field, container);
+		}
 	}
 
 	return obj;
