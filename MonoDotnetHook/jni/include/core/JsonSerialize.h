@@ -4,11 +4,11 @@
 #include <mono/metadata/object.h>
 #include <json/json.h>
 
-#define FIELD_ATTRIBUTE_STATIC                0x0010
-#define FIELD_ATTRIBUTE_SPECIAL_NAME          0x0200
-#define FIELD_ATTRIBUTE_RT_SPECIAL_NAME       0x0400
-#define TYPE_ATTRIBUTE_ABSTRACT              0x00000080
 #define METHOD_ATTRIBUTE_ABSTRACT                  0x0400
+#define METHOD_ATTRIBUTE_STRICT                    0x0200
+#define FIELD_ATTRIBUTE_STATIC                0x0010
+#define FIELD_ATTRIBUTE_INIT_ONLY             0x0020
+#define FIELD_ATTRIBUTE_LITERAL               0x0040
 /* a field is ignored if it's named "_Deleted" and it has the specialname and rtspecialname flags set */
 #define mono_field_is_deleted(field) ((mono_field_get_flags(field) & (FIELD_ATTRIBUTE_SPECIAL_NAME | FIELD_ATTRIBUTE_RT_SPECIAL_NAME)) \
 				      && (strcmp (mono_field_get_name (field), "_Deleted") == 0))
@@ -86,34 +86,7 @@ struct _MonoArray {
 };
 
 
-struct _MonoMethodSignature {
-	MonoType     *ret;
-#ifdef MONO_SMALL_CONFIG
-	guint8        param_count;
-	gint8         sentinelpos;
-	unsigned int  generic_param_count : 5;
-#else
-	uint16_t       param_count;
-	int16_t        sentinelpos;
-	unsigned int  generic_param_count : 16;
-#endif
-	unsigned int  call_convention : 6;
-	unsigned int  hasthis : 1;
-	unsigned int  explicit_this : 1;
-	unsigned int  pinvoke : 1;
-	unsigned int  is_inflated : 1;
-	unsigned int  has_type_parameters : 1;
-	MonoType     *params[MONO_ZERO_LEN_ARRAY];
-};
-
-struct _MonoReflectionType {
-	MonoObject object;
-	MonoType  *type;
-};
-
 extern "C" void *mono_vtable_get_static_field_data(MonoVTable *vt);
-
-
 
 
 class JsonSerialize
@@ -124,7 +97,9 @@ public:
 	MonoObject *Deserialize(Json::Value container, MonoClass *klass);
 
 protected:
-	virtual bool CanSerializeClass(MonoClass *klass);
+	virtual void SerializeInner(MonoObject* obj, Json::Value &container);
+	virtual MonoObject *DeserializeInner(Json::Value container, MonoClass *klass);
+	virtual bool CanSerializeClass(MonoClass* klass);
 	virtual bool CanSerializeProperty(MonoProperty *prop);
 	virtual bool CanSerializeField(_MonoClassField *field);
 	virtual void SerializeProperty(MonoObject*obj, MonoProperty *prop, Json::Value &container);
@@ -135,9 +110,11 @@ protected:
 	virtual void DeserializeMonoTypeWithAddr(MonoType *mono_type, void *addr, Json::Value container);
 
 private:
-	MonoDomain	*domain;
-	static void get_enum_desc_by_value(MonoType* mono_type, uint32_t enum_value, char* result, uint32_t size);
-	static uint32_t get_enum_value_by_desc(MonoType *mono_type, const char *desc);
-	static bool mono_type_is_enum(MonoType *mono_type);
-	static void advance_json_insert(Json::Value &container, Json::Value key, Json::Value value);
+	MonoDomain *domain;
+	std::vector<MonoObject *> serialied_objs;
+	static void enum_get_desc_by_value(MonoType* mono_type, int32_t enum_value, char* result, uint32_t size);
+	static uint32_t enum_get_value_by_desc(MonoType *mono_type, const char *desc);
+	static void json_advance_insert(Json::Value &container, Json::Value key, Json::Value value);
+	static Json::Value &json_advance_get_memeber(Json::Value &container, Json::Value key);
+	static bool json_advance_isnull(Json::Value container);
 };
