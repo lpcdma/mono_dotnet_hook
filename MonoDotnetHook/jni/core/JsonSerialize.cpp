@@ -1,6 +1,7 @@
 #include <mono/metadata/appdomain.h>
 #include <core/JsonSerialize.h>
 
+
 JsonSerialize::JsonSerialize()
 {
 	domain = mono_domain_get();
@@ -26,8 +27,14 @@ void JsonSerialize::SerializeInner(MonoObject* obj, Json::Value& container)
 
 	serialied_objs.push_back(obj);
 	MonoClass *klass = mono_object_get_class(obj);
+	container["type"] = (uint32_t)klass;
+
 	do
 	{
+		char sztmp[12] = { 0x00 };
+		snprintf(sztmp, 12, "%08x", (uint32_t)klass);
+		Json::Value *result = &container["data"][sztmp];
+
 		if (CanSerializeClass(klass))
 		{
 			void *iter;
@@ -38,7 +45,7 @@ void JsonSerialize::SerializeInner(MonoObject* obj, Json::Value& container)
 			{
 				if (CanSerializeField(field))
 				{
-					SerializeField(obj, field, container);
+					SerializeField(obj, field, *result);
 				}
 			}
 
@@ -48,15 +55,19 @@ void JsonSerialize::SerializeInner(MonoObject* obj, Json::Value& container)
 			{
 				if (CanSerializeProperty(prop))
 				{
-					SerializeProperty(obj, prop, container);
+					SerializeProperty(obj, prop, *result);
 				}
 			}
 
 			klass = mono_class_get_parent(klass);
+			if (klass == mono_get_object_class())
+			{
+				break;
+			}
 		}
 		else
 		{
-			container = Json::Value((uint32_t)obj);
+			*result = Json::Value((uint32_t)obj);
 			break;
 		}
 	} while (klass);
@@ -335,60 +346,50 @@ void JsonSerialize::SerializeMonoTypeWithAddr(MonoType* mono_type, void* addr, J
 	}
 }
 
-MonoObject* JsonSerialize::Deserialize(Json::Value container, MonoClass* klass)
+MonoObject* JsonSerialize::Deserialize(Json::Value container)
 {
-	if (!klass)
-	{
-		return NULL;
-	}
-
-	return DeserializeInner(container, klass);
+	return DeserializeInner(container);
 }
 
-MonoObject* JsonSerialize::DeserializeInner(Json::Value container, MonoClass* klass)
+MonoObject* JsonSerialize::DeserializeInner(Json::Value container)
 {
-	if (json_advance_isnull(container))
+	if (json_advance_isnull(container) || json_advance_isnull(container["type"]) || json_advance_isnull(container["data"]))
 	{
 		return NULL;
 	}
 
-	MonoObject *obj = mono_object_new(domain, klass);
-	do
+	if (container["data"].isIntegral())
 	{
-		if (CanSerializeClass(klass))
+		return (MonoObject *)container["data"].asUInt();
+	}
+	else
+	{
+		MonoClass *klass = (MonoClass *)container["type"].asUInt();
+		MonoObject *obj = mono_object_new(domain, klass);
+		std::vector<std::string> classes = container["data"].getMemberNames();
+		for (int i = 0; i < classes.size(); i++)
 		{
-			void *iter = NULL;
-
-			iter = NULL;
-			MonoClassField *field;
-			while ((field = mono_class_get_fields(klass, &iter)))
+			Json::Value *json_class_data = &container["data"][classes[i]];
+			std::vector<std::string> members = (*json_class_data).getMemberNames();
+			for (int j = 0; j < members.size(); j++)
 			{
-				if (CanSerializeField(field))
+				MonoClassField *field = mono_class_get_field_from_name(klass, members[j].c_str());
+				if (field)
 				{
-					DeserializeField(obj, field, container);
+					DeserializeField(obj, field, (*json_class_data));
+					continue;
+				}
+				MonoProperty *prop = mono_class_get_property_from_name(klass, members[j].c_str());
+				if (prop)
+				{
+					DeserializeProperty(obj, prop, (*json_class_data));
+					continue;
 				}
 			}
-
-			iter = NULL;
-			MonoProperty* prop;
-			while ((prop = mono_class_get_properties(klass, &iter)))
-			{
-				if (CanSerializeProperty(prop))
-				{
-					DeserializeProperty(obj, prop, container);
-				}
-			}
-
-			klass = mono_class_get_parent(klass);
 		}
-		else
-		{
-			obj = (MonoObject *)container.asUInt();
-			break;
-		}
-	} while (klass);
 
-	return obj;
+		return obj;
+	}
 }
 
 void JsonSerialize::DeserializeField(MonoObject* obj, MonoClassField* field, Json::Value container)
@@ -512,7 +513,7 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 	}
 	else if (type == MONO_TYPE_CLASS)
 	{
-		*(MonoObject **)addr = DeserializeInner(container, mono_class_from_mono_type(mono_type));
+		*(MonoObject **)addr = DeserializeInner(container);
 	}
 	else if (type == MONO_TYPE_SZARRAY)
 	{
@@ -594,7 +595,7 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 		{
 			if (mono_type_is_reference(mono_type))
 			{
-				*(MonoObject **)addr = DeserializeInner(container, mono_class_from_mono_type(mono_type));
+				*(MonoObject **)addr = DeserializeInner(container);
 			}
 			else
 			{
@@ -701,17 +702,17 @@ Json::Value &JsonSerialize::json_advance_get_memeber(Json::Value &container, Jso
 
 bool JsonSerialize::json_advance_isnull(Json::Value container)
 {
-	if (container==Json::nullValue)
+	if (container == Json::nullValue)
 	{
 		return true;
 	}
-	
+
 	if (container.isArray())
 	{
 		bool is_all_null = true;
-		for (uint32_t i=0; i<container.size(); i++)
+		for (uint32_t i = 0; i < container.size(); i++)
 		{
-			if (container[i]!=Json::nullValue)
+			if (container[i] != Json::nullValue)
 			{
 				is_all_null = false;
 				break;

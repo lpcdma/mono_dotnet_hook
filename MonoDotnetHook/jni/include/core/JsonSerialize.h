@@ -94,11 +94,11 @@ class JsonSerialize
 public:
 	JsonSerialize();
 	void Serialize(MonoObject* obj, Json::Value &container);
-	MonoObject *Deserialize(Json::Value container, MonoClass *klass);
+	MonoObject *Deserialize(Json::Value container);
 
 protected:
 	virtual void SerializeInner(MonoObject* obj, Json::Value &container);
-	virtual MonoObject *DeserializeInner(Json::Value container, MonoClass *klass);
+	virtual MonoObject *DeserializeInner(Json::Value container);
 	virtual bool CanSerializeClass(MonoClass* klass);
 	virtual bool CanSerializeProperty(MonoProperty *prop);
 	virtual bool CanSerializeField(_MonoClassField *field);
