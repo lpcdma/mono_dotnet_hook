@@ -1,10 +1,13 @@
 #include <mono/metadata/appdomain.h>
 #include <core/JsonSerialize.h>
+#include <core/logger.h>
 
 
 JsonSerialize::JsonSerialize()
 {
 	domain = mono_domain_get();
+	serializing_object = NULL;
+	deserializing_object = NULL;
 }
 
 void JsonSerialize::Serialize(MonoObject* obj, Json::Value &container)
@@ -14,26 +17,36 @@ void JsonSerialize::Serialize(MonoObject* obj, Json::Value &container)
 		return;
 	}
 
-	serialied_objs.clear();
 	SerializeInner(obj, container);
 }
 
-void JsonSerialize::SerializeInner(MonoObject* obj, Json::Value& container)
+void JsonSerialize::SerializeInner(MonoObject* obj, Json::Value& container, MonoClass* specific_class)
 {
-	if (std::find(serialied_objs.begin(), serialied_objs.end(), obj) != serialied_objs.end())
+	MonoClass *klass = specific_class == NULL ? mono_object_get_class(obj) : specific_class;
+
+	// 防止环形引用
+	if (serialized_object.find(obj)!=serialized_object.end())
 	{
-		return;
+		if (std::find(serialized_object[obj].begin(), serialized_object[obj].end(), klass)!= serialized_object[obj].end())
+		{
+			return;
+		}
+		serialized_object[obj].push_back(klass);
+	}
+	else
+	{
+		std::vector<void *> vec_classes;
+		vec_classes.push_back(klass);
+		serialized_object[obj] = vec_classes;
 	}
 
-	serialied_objs.push_back(obj);
-	MonoClass *klass = mono_object_get_class(obj);
+	// 序列化开始
+	serializing_object = obj;
 	container["type"] = (uint32_t)klass;
-
 	do
 	{
-		char sztmp[12] = { 0x00 };
-		snprintf(sztmp, 12, "%08x", (uint32_t)klass);
-		Json::Value *result = &container["data"][sztmp];
+		char sz_class_desc[12] = { 0x00 };
+		snprintf(sz_class_desc, 12, "%08x", (uint32_t)klass);
 
 		if (CanSerializeClass(klass))
 		{
@@ -45,7 +58,8 @@ void JsonSerialize::SerializeInner(MonoObject* obj, Json::Value& container)
 			{
 				if (CanSerializeField(field))
 				{
-					SerializeField(obj, field, *result);
+					LOGD("%s", mono_field_get_name(field));
+					SerializeField(obj, field, container["data"][sz_class_desc]);
 				}
 			}
 
@@ -55,7 +69,7 @@ void JsonSerialize::SerializeInner(MonoObject* obj, Json::Value& container)
 			{
 				if (CanSerializeProperty(prop))
 				{
-					SerializeProperty(obj, prop, *result);
+					SerializeProperty(obj, prop, container["data"][sz_class_desc]);
 				}
 			}
 
@@ -67,11 +81,13 @@ void JsonSerialize::SerializeInner(MonoObject* obj, Json::Value& container)
 		}
 		else
 		{
-			*result = Json::Value((uint32_t)obj);
+			container["data"][sz_class_desc] = Json::Value((uint32_t)obj);
 			break;
 		}
 	} while (klass);
 }
+
+
 
 void JsonSerialize::SerializeField(MonoObject*obj, MonoClassField* field, Json::Value& container)
 {
@@ -84,6 +100,11 @@ void JsonSerialize::SerializeField(MonoObject*obj, MonoClassField* field, Json::
 		void* start_addr = obj;
 		if (flags & FIELD_ATTRIBUTE_STATIC)
 		{
+			if (serialized_static.find(field) != serialized_static.end())
+			{
+				return;
+			}
+			serialized_static[field] = container;
 			start_addr = mono_vtable_get_static_field_data(mono_class_vtable(domain, mono_field_get_parent(field)));
 		}
 
@@ -99,6 +120,14 @@ void JsonSerialize::SerializeProperty(MonoObject*obj, MonoProperty* prop, Json::
 		uint32_t flags = mono_method_get_flags(getter, NULL);
 		if (!(flags & METHOD_ATTRIBUTE_ABSTRACT))
 		{
+			if (flags & METHOD_ATTRIBUTE_STATIC)
+			{
+				if (serialized_static.find(prop) != serialized_static.end())
+				{
+					return;
+				}
+				serialized_static[prop] = container;
+			}
 			MonoMethodSignature *signature = mono_method_get_signature(getter, mono_class_get_image(mono_method_get_class(getter)), mono_method_get_token(getter));
 			uint32_t param_count = mono_signature_get_param_count(signature);
 			if (param_count == 0)
@@ -203,7 +232,14 @@ void JsonSerialize::SerializeMonoTypeWithAddr(MonoType* mono_type, void* addr, J
 		}
 		else
 		{
-			json_advance_insert(container, key, Json::nullValue);
+			if (mono_type_is_struct(mono_type))
+			{
+				SerializeInner(serializing_object, json_advance_get_memeber(container, key), mono_type_get_class(mono_type));
+			}
+			else
+			{
+				json_advance_insert(container, key, Json::nullValue);
+			}
 		}
 	}
 	else if (type == MONO_TYPE_SZARRAY)
@@ -351,7 +387,7 @@ MonoObject* JsonSerialize::Deserialize(Json::Value container)
 	return DeserializeInner(container);
 }
 
-MonoObject* JsonSerialize::DeserializeInner(Json::Value container)
+MonoObject* JsonSerialize::DeserializeInner(Json::Value container, MonoObject *specific_object)
 {
 	if (json_advance_isnull(container) || json_advance_isnull(container["type"]) || json_advance_isnull(container["data"]))
 	{
@@ -360,12 +396,14 @@ MonoObject* JsonSerialize::DeserializeInner(Json::Value container)
 
 	if (container["data"].isIntegral())
 	{
-		return (MonoObject *)container["data"].asUInt();
+		deserializing_object = (MonoObject *)container["data"].asUInt();
+		return deserializing_object;
 	}
 	else
 	{
 		MonoClass *klass = (MonoClass *)container["type"].asUInt();
-		MonoObject *obj = mono_object_new(domain, klass);
+		MonoObject *obj = specific_object == NULL ? mono_object_new(domain, klass) : specific_object;
+		deserializing_object = obj;
 		std::vector<std::string> classes = container["data"].getMemberNames();
 		for (int i = 0; i < classes.size(); i++)
 		{
@@ -405,6 +443,11 @@ void JsonSerialize::DeserializeField(MonoObject* obj, MonoClassField* field, Jso
 			void* start_addr = obj;
 			if (flags & FIELD_ATTRIBUTE_STATIC)
 			{
+				if (deserialized_static.find(field) != deserialized_static.end())
+				{
+					return;
+				}
+				deserialized_static[field] = container[field_name];
 				start_addr = mono_vtable_get_static_field_data(mono_class_vtable(domain, mono_field_get_parent(field)));
 			}
 			DeserializeMonoTypeWithAddr(mono_type, (void *)((uint64_t)start_addr + offset), container[field_name]);
@@ -423,6 +466,14 @@ void JsonSerialize::DeserializeProperty(MonoObject* obj, MonoProperty* prop, Jso
 			uint32_t flags = mono_method_get_flags(setter, NULL);
 			if (!(flags & METHOD_ATTRIBUTE_ABSTRACT))
 			{
+				if (flags & FIELD_ATTRIBUTE_STATIC)
+				{
+					if (deserialized_static.find(prop) != deserialized_static.end())
+					{
+						return;
+					}
+					deserialized_static[prop] = container[prop_name];
+				}
 				MonoMethodSignature *signature = mono_method_get_signature(setter, mono_class_get_image(mono_method_get_class(setter)), mono_method_get_token(setter));
 				uint32_t param_count = mono_signature_get_param_count(signature);
 				if (param_count == 1)
@@ -509,6 +560,13 @@ void JsonSerialize::DeserializeMonoTypeWithAddr(MonoType* mono_type, void* addr,
 		if (mono_class_is_enum(mono_type_get_class(mono_type)))
 		{
 			*(uint32_t *)addr = enum_get_value_by_desc(mono_type, container.asCString());
+		}
+		else
+		{
+			if (mono_type_is_struct(mono_type))
+			{
+				DeserializeInner(container, deserializing_object);
+			}
 		}
 	}
 	else if (type == MONO_TYPE_CLASS)
@@ -723,4 +781,13 @@ bool JsonSerialize::json_advance_isnull(Json::Value container)
 	}
 
 	return false;
+}
+
+bool JsonSerialize::mono_type_is_struct(MonoType* type)
+{
+	return (!mono_type_is_byref(type) && ((type->type == MONO_TYPE_VALUETYPE &&
+		!mono_class_is_enum(mono_type_get_class(type))) || (mono_type_get_type(type) == MONO_TYPE_TYPEDBYREF) ||
+		((type->type == MONO_TYPE_GENERICINST) &&
+			mono_metadata_generic_class_is_valuetype(type->data.generic_class) &&
+			!mono_class_is_enum(type->data.generic_class->container_class))));
 }

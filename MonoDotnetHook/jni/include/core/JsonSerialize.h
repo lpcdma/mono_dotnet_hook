@@ -5,7 +5,7 @@
 #include <json/json.h>
 
 #define METHOD_ATTRIBUTE_ABSTRACT                  0x0400
-#define METHOD_ATTRIBUTE_STRICT                    0x0200
+#define METHOD_ATTRIBUTE_STATIC                    0x0010
 #define FIELD_ATTRIBUTE_STATIC                0x0010
 #define FIELD_ATTRIBUTE_INIT_ONLY             0x0020
 #define FIELD_ATTRIBUTE_LITERAL               0x0040
@@ -97,8 +97,8 @@ public:
 	MonoObject *Deserialize(Json::Value container);
 
 protected:
-	virtual void SerializeInner(MonoObject* obj, Json::Value &container);
-	virtual MonoObject *DeserializeInner(Json::Value container);
+	virtual void SerializeInner(MonoObject* obj, Json::Value &container, MonoClass *specific_class = NULL);
+	virtual MonoObject *DeserializeInner(Json::Value container, MonoObject *specific_object = NULL);
 	virtual bool CanSerializeClass(MonoClass* klass);
 	virtual bool CanSerializeProperty(MonoProperty *prop);
 	virtual bool CanSerializeField(_MonoClassField *field);
@@ -111,10 +111,15 @@ protected:
 
 private:
 	MonoDomain *domain;
-	std::vector<MonoObject *> serialied_objs;
+	MonoObject *serializing_object;
+	MonoObject *deserializing_object;
+	std::map<void *, Json::Value> serialized_static;
+	std::map<void *, Json::Value> deserialized_static;
+	std::map<void *, std::vector<void *> > serialized_object;
 	static void enum_get_desc_by_value(MonoType* mono_type, int32_t enum_value, char* result, uint32_t size);
 	static uint32_t enum_get_value_by_desc(MonoType *mono_type, const char *desc);
 	static void json_advance_insert(Json::Value &container, Json::Value key, Json::Value value);
 	static Json::Value &json_advance_get_memeber(Json::Value &container, Json::Value key);
 	static bool json_advance_isnull(Json::Value container);
+	static bool mono_type_is_struct(MonoType *type);
 };
