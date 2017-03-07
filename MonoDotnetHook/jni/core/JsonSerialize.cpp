@@ -1,6 +1,5 @@
 #include <mono/metadata/appdomain.h>
 #include <core/JsonSerialize.h>
-#include <core/logger.h>
 
 
 JsonSerialize::JsonSerialize()
@@ -58,7 +57,6 @@ void JsonSerialize::SerializeInner(MonoObject* obj, Json::Value& container, Mono
 			{
 				if (CanSerializeField(field))
 				{
-					LOGD("%s", mono_field_get_name(field));
 					SerializeField(obj, field, container["data"][sz_class_desc]);
 				}
 			}
@@ -785,9 +783,9 @@ bool JsonSerialize::json_advance_isnull(Json::Value container)
 
 bool JsonSerialize::mono_type_is_struct(MonoType* type)
 {
-	return (!mono_type_is_byref(type) && ((type->type == MONO_TYPE_VALUETYPE &&
+	return (!mono_type_is_byref(type) && ((mono_type_get_type(type) == MONO_TYPE_VALUETYPE &&
 		!mono_class_is_enum(mono_type_get_class(type))) || (mono_type_get_type(type) == MONO_TYPE_TYPEDBYREF) ||
-		((type->type == MONO_TYPE_GENERICINST) &&
+		((mono_type_get_type(type) == MONO_TYPE_GENERICINST) &&
 			mono_metadata_generic_class_is_valuetype(type->data.generic_class) &&
 			!mono_class_is_enum(type->data.generic_class->container_class))));
 }
