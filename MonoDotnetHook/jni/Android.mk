@@ -53,4 +53,4 @@ dest_path	:= /data/local/tmp
 all:
 	adb push $(NDK_APP_DST_DIR)/injector $(dest_path)/
 	adb push $(NDK_APP_DST_DIR)/libmonohook.so $(dest_path)/
-	adb shell "su -c 'chmod 755 $(dest_path)/*.*'"
+	adb shell "chmod 755 $(dest_path)/*.*"

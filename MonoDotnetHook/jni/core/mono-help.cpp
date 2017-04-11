@@ -173,8 +173,12 @@ MonoMethod *find_method(char *image_name, char *space_name, char *class_name, ch
 			MonoMethodDesc *method_desc = mono_method_desc_new(str_fullname.data(), false);
 			target_method = mono_method_desc_search_in_class(method_desc, klass);
 			mono_method_desc_free(method_desc);
-		}
-	}
+		} else {
+            LOGD("image find but klass is NULL!");
+        }
+	} else {
+        LOGD("found_image is NULL!");
+    }
 
 	return target_method;
 }

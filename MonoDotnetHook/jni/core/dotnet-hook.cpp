@@ -30,6 +30,10 @@ void hook_dotnet(MonoString *str_target, MonoString *str_replace, MonoString *st
 		return;
 	}
 
+	vec_target[1] = "UnityStandardAssets._2D";
+
+	LOGD(" ==%s==  ==%s== ==%s== ==%s==",vec_target[0], vec_target[1], vec_target[2], vec_target[3]);
+
 	MonoMethod *target_method = find_method(vec_target[0], vec_target[1], vec_target[2], vec_target[3]);
 	MonoMethod *replace_method = find_method(vec_replace[0], vec_replace[1], vec_replace[2], vec_replace[3]);
 	MonoMethod *old_method = find_method(vec_old[0], vec_old[1], vec_old[2], vec_old[3]);
